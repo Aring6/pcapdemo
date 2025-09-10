@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"net/http"
+	"log"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
