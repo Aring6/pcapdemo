@@ -1,69 +1,93 @@
 package main
 
 import (
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
 )
 
+// 写死输入路径：可填目录或单个文件。
+// 在 K8s 里挂载 hostPath:/data/pcaps -> /app/pcaps 的话，建议用 "/app/pcaps"
+const inputPath = "pcaps"
+
+// 空闲时的短暂休眠，避免空转刷满 CPU（解析过程中不休眠）
+const idleSleep = 500 * time.Millisecond
+
+// 轮询间隔：一轮跑完所有文件后立刻开始下一轮（保持持续负载）
+const loopSleep = 0 * time.Millisecond
+
 func main() {
-	// 可以是单文件，也可以是目录
-	path := "pcaps"
-
-	info, err := os.Stat(path)
-	if err != nil {
-		panic(err)
-	}
-
-	if info.IsDir() {
-		filepath.WalkDir(path, func(file string, d fs.DirEntry, e error) error {
-			if e != nil {
-				return e
-			}
-			if !d.IsDir() && filepath.Ext(file) == ".pcap" {
-				parsePcap(file)
-			}
-			return nil
-		})
-	} else {
-		parsePcap(path)
+	for {
+		files, err := listPcapFiles(inputPath)
+		if err != nil {
+			time.Sleep(idleSleep)
+			continue
+		}
+		if len(files) == 0 {
+			time.Sleep(idleSleep)
+			continue
+		}
+		for _, f := range files {
+			parsePcapFile(f)
+		}
+		if loopSleep > 0 {
+			time.Sleep(loopSleep)
+		}
 	}
 }
 
-func parsePcap(file string) {
+// 列出所有 .pcap（支持目录/单文件）
+func listPcapFiles(path string) ([]string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		if filepath.Ext(path) == ".pcap" {
+			return []string{path}, nil
+		}
+		return nil, os.ErrInvalid
+	}
+	out := make([]string, 0, 128)
+	err = filepath.WalkDir(path, func(p string, d fs.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if !d.IsDir() && filepath.Ext(p) == ".pcap" {
+			out = append(out, p)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// 只做解析，不打印、不统计
+func parsePcapFile(file string) {
 	f, err := os.Open(file)
 	if err != nil {
-		fmt.Printf("无法打开文件 %s: %v\n", file, err)
 		return
 	}
 	defer f.Close()
 
 	r, err := pcapgo.NewReader(f)
 	if err != nil {
-		fmt.Printf("无法读取 pcap %s: %v\n", file, err)
 		return
 	}
-
-	var total int
 	for {
-		data, _, err := r.ReadPacketData()
+		data, ci, err := r.ReadPacketData()
 		if err != nil {
-			break
+			return // EOF 或错误：结束本文件
 		}
-		total++
-
-		// 走解析逻辑
-		packet := gopacket.NewPacket(data, layers.LinkTypeEthernet, gopacket.NoCopy)
-		_ = packet.Layer(layers.LayerTypeIPv4)
-		_ = packet.Layer(layers.LayerTypeIPv6)
-		_ = packet.Layer(layers.LayerTypeTCP)
-		_ = packet.Layer(layers.LayerTypeUDP)
+		_ = ci
+		pkt := gopacket.NewPacket(data, layers.LinkTypeEthernet, gopacket.NoCopy)
+		_ = pkt.Layer(layers.LayerTypeIPv4)
+		_ = pkt.Layer(layers.LayerTypeIPv6)
+		_ = pkt.Layer(layers.LayerTypeTCP)
+		_ = pkt.Layer(layers.LayerTypeUDP)
 	}
-
-	fmt.Printf("文件 %s 解析完成，总包数: %d\n", file, total)
 }
