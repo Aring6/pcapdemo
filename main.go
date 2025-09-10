@@ -10,6 +10,9 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
+
+	// pprof 注册到 http.DefaultServeMux
+	_ "net/http/pprof"
 )
 
 // 在 K8s 中挂载 hostPath:/data/pcaps -> /app/pcaps 时，保持这个路径
@@ -25,6 +28,11 @@ const repeatPerPacket = 3
 const heartbeatInterval = 30 * time.Second
 
 func main() {
+	// ✅ 启动 pprof HTTP 服务
+    go func() {
+        log.Println(http.ListenAndServe("0.0.0.0:6060", nil))
+    }()
+
 	var cycles uint64
 	lastPrint := time.Now()
 	for {

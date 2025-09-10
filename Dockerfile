@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 # 关键：禁用 cgo，构建纯静态二进制（避免 glibc 依赖）
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -mod=vendor -trimpath -ldflags="-s -w" -o pcapdemo main.go
+    go build -mod=vendor -trimpath -o pcapdemo main.go
 
 # -------- Runner (scratch) --------
 FROM scratch
