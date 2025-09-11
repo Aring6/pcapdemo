@@ -2,9 +2,13 @@
 FROM golang:1.22 AS builder
 WORKDIR /app
 COPY . .
-# 关键：禁用 cgo，构建纯静态二进制（避免 glibc 依赖）
+# 调试友好的静态构建：保留符号、关内联、DWARF不压缩、启用帧指针
+ENV GOEXPERIMENT=framepointer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -mod=vendor -trimpath -o pcapdemo main.go
+    go build -mod=vendor \
+             -gcflags=all="-N -l" \
+             -ldflags="-compressdwarf=false" \
+             -o pcapdemo main.go
 
 # -------- Runner (scratch) --------
 FROM scratch
