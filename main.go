@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/fs"
-	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -108,17 +106,15 @@ func parsePcapFileFast(file string) {
 	)
 	// 对未知/不支持的层跳过，而不是报错
 	parser.IgnoreUnsupported = true
-	parser.DecoderLazy = true // 惰性解码，按需展开，进一步减少不必要工作
 
 	// 复用 decoded layers 容器，避免每包分配
 	decoded := make([]gopacket.LayerType, 0, 16)
 
 	for {
-		data, ci, err := r.ReadPacketData()
+		data, _, err := r.ReadPacketData()
 		if err != nil {
 			return // EOF 或错误：结束本文件
 		}
-		_ = ci
 
 		for i := 0; i < repeatPerPacket; i++ {
 			decoded = decoded[:0]
