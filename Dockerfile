@@ -3,7 +3,6 @@ FROM golang:1.22 AS builder
 WORKDIR /app
 COPY . .
 # 调试友好的静态构建：保留符号、关内联、DWARF不压缩、启用帧指针
-ENV GOEXPERIMENT=framepointer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -mod=vendor \
              -gcflags=all="-N -l" \
