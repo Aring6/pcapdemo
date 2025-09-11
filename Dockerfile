@@ -5,8 +5,7 @@ COPY . .
 # 调试友好的静态构建：保留符号、关内联、DWARF不压缩、启用帧指针
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -mod=vendor \
-             -gcflags=all="-N -l" \
-             -ldflags="-compressdwarf=false" \
+             -gcflags="all=-N -l" \
              -o pcapdemo main.go
 
 # -------- Runner (scratch) --------
